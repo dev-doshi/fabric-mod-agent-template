@@ -5,11 +5,11 @@
 	"name": "Example Mod",
 	"description": "AI-agent-optimized Fabric mod starter: block, item, entity, command, networking, config, mixin — each with a passing test.",
 	"authors": [
-		"you"
+		"dev-doshi"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://github.com/dev-doshi/fabric-mod-agent-template",
+		"sources": "https://github.com/dev-doshi/fabric-mod-agent-template"
 	},
 	"license": "CC0-1.0",
 	"icon": "assets/${mod_id}/icon.png",
