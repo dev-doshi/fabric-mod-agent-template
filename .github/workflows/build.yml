@@ -1,0 +1,61 @@
+# Build + full automated test suite on every push and PR.
+# Three tiers: unit (JUnit) + server gametest run inside `./gradlew build`;
+# the headless client gametest runs as a separate job with a virtual framebuffer.
+name: build
+on: [pull_request, push]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+      # `build` compiles all source sets, runs `test` (Tier 1) and `runGameTest` (Tier 2, via check).
+      - name: build
+        run: ./gradlew build
+      - name: capture build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Artifacts
+          path: build/libs/
+      - name: store reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports
+          path: |
+            **/build/reports/
+            **/build/test-results/
+
+  client_game_test:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+      - name: install xvfb (headless client rendering)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+      # Tier 3: headless client gametest. useXVFB is enabled by the CI env var in build.gradle.
+      - name: run client game test
+        run: ./gradlew runProductionClientGameTest
+      - name: store screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: client-screenshots
+          path: build/run/clientGameTest/screenshots

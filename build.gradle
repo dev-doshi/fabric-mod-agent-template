@@ -1,0 +1,118 @@
+plugins {
+	// UNOBFUSCATED-ERA PLUGIN ID. For MC 26.1+, use 'net.fabricmc.fabric-loom' (no remapping).
+	// 'net.fabricmc.fabric-loom-remap' is the LEGACY plugin for <=1.21.11 only.
+	// A bare 'fabric-loom' id silently resolves to the remap plugin now — do not use it.
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+base.archivesName = project.archives_base_name
+
+repositories {
+	// Loom adds the essential Minecraft/Fabric maven repos automatically.
+	// Add repositories here only when depending on OTHER mods.
+}
+
+loom {
+	// Splits main (common) and client source sets so client-only classes cannot leak to the server.
+	splitEnvironmentSourceSets()
+
+	mods {
+		register(project.mod_id) {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+
+	// Access wideners are "Class Tweakers" (.classtweaker) since 26.1, still wired via accessWidenerPath.
+	// Uncomment when you add widened members:
+	// accessWidenerPath = file("src/main/resources/example.classtweaker")
+}
+
+// ============================================================================
+// Automated testing — the core of the agent feedback loop.
+// Generates run tasks: runGameTest (headless server, wired into `check`/`build`),
+// runClientGameTest (headed locally), acceptGameTestEula.
+// Docs: https://docs.fabricmc.net/develop/automatic-testing
+// ============================================================================
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "${project.mod_id}-test"
+		enableGameTests = true
+		enableClientGameTests = true
+		// By setting this to true you agree to the Minecraft EULA (https://aka.ms/MinecraftEULA).
+		eula = true
+	}
+}
+
+dependencies {
+	// See gradle.properties for versions.
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	// NO `mappings` line — Minecraft 26.1+ ships unobfuscated with official names + parameter names.
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Tier-1 unit tests: bootstraps Fabric Loader around plain JUnit 5 so registries/codecs work.
+	testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
+
+	// Headless client gametest in CI runs from a production jar classpath.
+	productionRuntimeMods "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+test {
+	useJUnitPlatform()
+}
+
+// Headless client gametest for CI (Linux + xvfb). Locally prefer `runClientGameTest`.
+tasks.register("runProductionClientGameTest", net.fabricmc.loom.task.prod.ClientProductionRunTask) {
+	jvmArgs.add("-Dfabric.client.gametest")
+	// Known CI issue: network synchronizer can fail on GitHub Actions. Disable it there.
+	jvmArgs.add("-Dfabric.client.gametest.disableNetworkSynchronizer=true")
+	// XVFB defaults to true on Linux when the CI env var is set; force it explicitly.
+	useXVFB = System.getenv("CI") != null
+}
+
+processResources {
+	def props = ["version": project.version, "mod_id": project.mod_id]
+	inputs.properties(props)
+	filesMatching("fabric.mod.json") {
+		expand(props)
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+}
+
+java {
+	withSourcesJar()
+
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+jar {
+	def projectName = project.name
+	inputs.property "projectName", projectName
+	from("LICENSE") {
+		rename { "${it}_$projectName" }
+	}
+}
+
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			from components.java
+		}
+	}
+	repositories {
+		// Add publish targets here.
+	}
+}
