@@ -2,10 +2,13 @@
 # test.sh — tiered test loop. Exit code is the source of truth; no log scraping needed.
 #
 #   scripts/test.sh unit       # Tier 1: JUnit (seconds)     — logic, config, codecs
-#   scripts/test.sh game       # Tier 2: server @GameTest    — block/item/entity/command behavior
-#   scripts/test.sh client     # Tier 3: client gametest     — GUI, input, screenshots
+#   scripts/test.sh game       # Tier 2: server @GameTest    — block/item/entity/command + multiplayer sim
+#   scripts/test.sh client     # Tier 3: client gametest     — GUI, input, screenshots, GUI-under-load
 #   scripts/test.sh            # Tier 1 + 2 (fast inner loop; default)
 #   scripts/test.sh all        # 1 + 2 + 3
+#
+# The multiplayer simulation (dozens of concurrent bots) runs inside Tier 2 (runGameTest); the
+# GUI-observer-under-load runs inside Tier 3 (runClientGameTest). See src/gametest/java/com/example/sim/.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"

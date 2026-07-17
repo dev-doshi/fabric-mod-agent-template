@@ -78,6 +78,23 @@ scripts/test.sh all      # 1 + 2 + 3
   per client tick. Use `context.getInput()` for synthetic input and `assertScreenshotEquals(...)`
   for visual regression — an agent can verify rendering with no human watching.
 
+### Multiplayer simulation (concurrent players)
+For testing under realistic multiplayer load, the harness in `src/gametest/java/com/example/sim/`
+spawns many **real, fully-joined server players** (no mocks) and drives them through the actual
+serverbound packet handlers:
+- `SimPlayer.join(level, name, pos)` — joins a bot via `PlayerList.placeNewPlayer` over a fake
+  `SimConnection` (real `ServerGamePacketListenerImpl`; movement/interaction/settings all run for real).
+- `SimPlayer` actions: `moveTo`, `swing`, `startBreak`, `changeSettings`, `leave` — each injects a
+  real packet, so your mod's server logic (anticheat, events, player-list features) is exercised.
+- `Simulation.spawn(level, count, center, spread, seed).start(behavior)` — orchestrates N bots under a
+  per-tick behavior, pumped on `END_SERVER_TICK` (the server thread), deterministic via a seeded random.
+- **Concurrency model:** the MC server is single-threaded; "simultaneous" = same-tick interleaving,
+  which is exactly what a real server does draining many clients' packets per tick. The harness
+  reproduces that faithfully. It does NOT simulate separate network stacks (that's external protocol
+  bots — out of scope). Scale target: dozens (verified with 24).
+- Examples: `ExampleSimGameTest` (server swarm, headless) and `ExampleSimClientGameTest` (one real
+  client observes the swarm — GUI/HUD under load, with a screenshot).
+
 ### Verifying a mixin actually applied
 Mixins fail silently. To confirm one applied: run with `-Dmixin.debug.export=true` and check that
 your target class appears under `run/**/.mixin.out/`. Better: assert the mixin's *effect* in a
@@ -102,6 +119,9 @@ src/client/java/com/example/client/
   mixin/TitleScreenMixin.java       client mixin example
 src/test/java/com/example/          Tier 1 JUnit (ExampleConfigTest, BootstrapExampleTest)
 src/gametest/java/com/example/      Tier 2 server + Tier 3 client gametests
+  sim/                              multiplayer sim harness (SimConnection/SimPlayer/Simulation)
+  ExampleSimGameTest.java           server swarm (24 concurrent bots), headless
+  ExampleSimClientGameTest.java     one real client observing the swarm (GUI under load)
 src/main/resources/                 fabric.mod.json, example.mixins.json, assets/ (models, lang)
 scripts/                            find-mc, find-api, registry, test, sync-docs
 .agent-docs/                        vendored grounding corpus (gitignored)

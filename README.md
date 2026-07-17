@@ -31,6 +31,29 @@ scripts/test.sh all        # everything
 ```
 CI runs all three tiers — see [.github/workflows/build.yml](.github/workflows/build.yml).
 
+## Multiplayer simulation (concurrent players)
+The harness can spawn **many real, fully-joined server players** and drive them through the actual
+serverbound packet handlers — so your mod's server logic runs under realistic multiplayer load, not
+against mocks. See `src/gametest/java/com/example/sim/`.
+
+```java
+Simulation sim = Simulation.spawn(level, 24, center, /*spread*/ 8.0, /*seed*/ 1234L)
+    .start((player, tick, random) -> {
+        player.moveTo(player.entity().position().add(rndStep(random)), true); // real movement packet
+        if (tick % 20 == 0) player.swing();                                   // real interaction
+        if (tick % 15 == 0) player.changeSettings(newClientInfo(random));      // real settings sync
+    });
+```
+
+- **Realistic:** bots join via `PlayerList.placeNewPlayer` over a fake connection; movement,
+  interaction, and settings all go through the real `ServerGamePacketListenerImpl`.
+- **Deterministic:** seeded; actions land per-tick on the server thread.
+- **Concurrency model:** the MC server is single-threaded, so "simultaneous" means same-tick
+  interleaving — exactly how a real server drains many clients per tick. Verified with 24 bots.
+- Two worked tests: `ExampleSimGameTest` (headless server swarm) and `ExampleSimClientGameTest`
+  (one real client observes the swarm — GUI/HUD under load, captured as a screenshot).
+- Not covered: separate per-client network stacks (that's external protocol bots — out of scope).
+
 ## What's in the box
 | Feature | Files |
 |---|---|
@@ -40,6 +63,7 @@ CI runs all three tiers — see [.github/workflows/build.yml](.github/workflows/
 | `/example` command | `src/main/java/com/example/command/ModCommands.java` |
 | JSON config (unit-tested) | `src/main/java/com/example/config/ExampleConfig.java` |
 | Server + client mixins | `src/main/java/com/example/mixin/`, `src/client/.../mixin/` |
+| Multiplayer simulation harness | `src/gametest/java/com/example/sim/` |
 | Grounding scripts | `scripts/find-mc.sh`, `find-api.sh`, `registry.sh` |
 
 ## Versions (single source of truth: `gradle.properties`)

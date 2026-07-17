@@ -6,10 +6,12 @@
 	"environment": "*",
 	"entrypoints": {
 		"fabric-gametest": [
-			"com.example.ExampleGameTest"
+			"com.example.ExampleGameTest",
+			"com.example.ExampleSimGameTest"
 		],
 		"fabric-client-gametest": [
-			"com.example.ExampleClientGameTest"
+			"com.example.ExampleClientGameTest",
+			"com.example.ExampleSimClientGameTest"
 		]
 	},
 	"depends": {
