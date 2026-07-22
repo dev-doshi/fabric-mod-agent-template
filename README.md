@@ -31,6 +31,21 @@ scripts/test.sh all        # everything
 ```
 CI runs all three tiers — see [.github/workflows/build.yml](.github/workflows/build.yml).
 
+## Sentinel anticheat (P0+P1: server-authoritative movement)
+A dynamic, highly-configurable, EULA-compliant anticheat built into the mod and tested by the sim
+harness spawning bots that *cheat on purpose*. See `src/main/java/com/example/sentinel/`.
+
+- **Server-authoritative prediction**, not client trust: a mixin feeds `handleMovePlayer` to a check
+  engine that compares each move to a lag-compensated, attribute-derived valid envelope.
+- **Checks (P1):** Speed, Fly, NoFall, Timer. Violation levels with decay + buffering; default
+  response is **setback + silent staff alert** (no auto-ban) — near-zero false-positive risk.
+- **Configurable + hot-reload:** per-check `enabled`/`setbackVl`/`decay`/`buffer` in `sentinel.json`;
+  `/sentinel reload|alerts|verbose|vl <player>`.
+- **EULA-compliant:** behavioral only — no memory/host scanning; client attestation (deferred P5) is
+  documented as friction, never proof. See the plan for the honest verdict on client checksums.
+- **Proved by tests:** `SentinelMovementGameTest` spawns cheating bots (each check flags) and legit
+  bots (zero false positives), all headless + CI-gated; plus Tier-1 JUnit on VL/config logic.
+
 ## Multiplayer simulation (concurrent players)
 The harness can spawn **many real, fully-joined server players** and drive them through the actual
 serverbound packet handlers — so your mod's server logic runs under realistic multiplayer load, not

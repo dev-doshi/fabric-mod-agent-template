@@ -1,0 +1,373 @@
+<meta charset="utf-8">
+<title>Sim Scope — multiplayer test replay</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0e1512; --panel: #131c18; --panel-2: #182420; --line: #22322b;
+    --ink: #d8e4dd; --ink-dim: #8ea69a; --ink-faint: #5c7168;
+    --accent: #35d0a8; --accent-dim: #1f7d67;
+    --walk: #4aa8ff; --swing: #f5a623; --settings: #3ddc84; --break: #ff5d5d; --idle: #8a97a0;
+    --grid: rgba(120,160,145,0.10); --trail: rgba(53,208,168,0.0);
+    --radius: 10px;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #eef2ef; --panel: #ffffff; --panel-2: #f3f6f3; --line: #dbe4de;
+      --ink: #16211c; --ink-dim: #4b5f56; --ink-faint: #859890;
+      --accent: #128a6c; --accent-dim: #7fc9b6;
+      --grid: rgba(20,60,45,0.08);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1512; --panel: #131c18; --panel-2: #182420; --line: #22322b;
+    --ink: #d8e4dd; --ink-dim: #8ea69a; --ink-faint: #5c7168; --accent: #35d0a8; --accent-dim: #1f7d67;
+    --grid: rgba(120,160,145,0.10);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2ef; --panel: #ffffff; --panel-2: #f3f6f3; --line: #dbe4de;
+    --ink: #16211c; --ink-dim: #4b5f56; --ink-faint: #859890; --accent: #128a6c; --accent-dim: #7fc9b6;
+    --grid: rgba(20,60,45,0.08);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 18px 48px; }
+
+  header.top { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+  h1 { font-size: 20px; letter-spacing: 0.14em; text-transform: uppercase; margin: 0; font-weight: 650; }
+  .sub { color: var(--ink-dim); font-size: 13px; }
+  .stats { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+    padding: 4px 11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .stat b { color: var(--ink); font-weight: 600; }
+
+  .transport {
+    display: flex; align-items: center; gap: 14px; margin: 16px 0;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px;
+  }
+  button.play {
+    appearance: none; border: 1px solid var(--accent-dim); background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+    color: var(--ink); width: 42px; height: 42px; border-radius: 9px; cursor: pointer; font-size: 16px;
+    display: grid; place-items: center; transition: background .15s;
+  }
+  button.play:hover { background: color-mix(in srgb, var(--accent) 26%, var(--panel)); }
+  button.play:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .scrub { flex: 1; display: flex; align-items: center; gap: 12px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  .tick { font-family: var(--mono); font-size: 13px; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tick b { color: var(--accent); }
+  select { font-family: var(--mono); font-size: 12px; background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 7px; padding: 7px 8px; }
+  label.spd { font-size: 12px; color: var(--ink-faint); display: flex; align-items: center; gap: 7px; }
+
+  .scope-row { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 860px) { .scope-row { grid-template-columns: 1.55fr 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+  .panel .hd { padding: 11px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+  .panel .hd h2 { margin: 0; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); font-weight: 600; }
+  .arena-body { padding: 12px; }
+  canvas.arena { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--panel-2); }
+
+  .legend { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .legend .row { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--ink-dim); }
+  .legend .row .k { color: var(--ink); font-family: var(--mono); font-size: 12px; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .legend .count { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .legend .note { margin-top: 4px; font-size: 12px; color: var(--ink-faint); line-height: 1.45; }
+
+  h2.section { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim);
+    margin: 26px 0 12px; font-weight: 600; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 11px; display: flex; flex-direction: column; gap: 9px; }
+  .card .name { font-family: var(--mono); font-size: 12.5px; color: var(--ink); display: flex; align-items: center; gap: 7px; }
+  .card .name .led { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .chip { margin-left: auto; font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 7px; border-radius: 999px; color: #05110d; font-weight: 600; }
+  canvas.radar { width: 100%; height: auto; display: block; background: var(--panel-2); border-radius: 7px; }
+  .meta { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); display: flex; flex-direction: column; gap: 5px; }
+  .vd { display: flex; align-items: center; gap: 7px; }
+  .vd .bar { flex: 1; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .vd .bar i { display: block; height: 100%; background: var(--settings); border-radius: 3px; }
+  .vd .val { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .coords { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+  .empty { padding: 40px; text-align: center; color: var(--ink-dim); font-family: var(--mono); font-size: 13px; }
+  footer.foot { margin-top: 30px; color: var(--ink-faint); font-size: 12px; line-height: 1.5; }
+  code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; color: var(--ink-dim); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>Sim Scope</h1>
+    </div>
+    <span class="sub">multiplayer test replay — server-tick telemetry</span>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div id="app" hidden>
+    <div class="transport">
+      <button class="play" id="play" aria-label="Play or pause">▶</button>
+      <div class="scrub">
+        <input type="range" id="scrub" min="0" value="0" step="1" aria-label="Scrub timeline">
+        <span class="tick">t <b id="tnow">0</b> / <span id="ttot">0</span></span>
+      </div>
+      <label class="spd">speed
+        <select id="speed">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="scope-row">
+      <div class="panel">
+        <div class="hd"><h2>Arena — top-down</h2></div>
+        <div class="arena-body"><canvas class="arena" id="arena"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="hd"><h2>Action legend</h2></div>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+
+    <h2 class="section">Per-player view — egocentric radar (forward = up)</h2>
+    <div class="cards" id="cards"></div>
+  </div>
+
+  <div class="empty" id="empty">
+    No trace loaded. Run <code>./gradlew runGameTest</code>, copy
+    <code>build/run/gameTest/sim-trace.json</code> next to this file, and reload.
+  </div>
+
+  <footer class="foot">
+    Replay of a recorded simulation — deterministic, not live. Each blip is a real server-side player
+    driven through the actual packet handlers. Colours encode the player's action on that tick.
+  </footer>
+</div>
+
+<script>
+const ACTION = { walk: null, swing: null, settings: null, break: null, idle: null };
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function actionColor(a){ return cssVar('--' + (a === 'break' ? 'break' : a)) || cssVar('--idle'); }
+
+async function loadTrace(){
+  if (window.__TRACE__) return window.__TRACE__;
+  try {
+    const r = await fetch('sim-trace.json', { cache: 'no-store' });
+    if (r.ok) return await r.json();
+  } catch (e) { /* Artifact CSP or file://; fall through to empty state */ }
+  return null;
+}
+
+function main(trace){
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const players = trace.meta.players;
+  const frames = trace.frames;
+  const N = players.length, T = frames.length;
+  const [cx, cz] = trace.meta.center;
+
+  // Relative bounds across the whole run.
+  let minX=Infinity, maxX=-Infinity, minZ=Infinity, maxZ=-Infinity;
+  for (const f of frames) for (const s of f.s){
+    const x = s[0]-cx, z = s[1]-cz;
+    if (x<minX)minX=x; if (x>maxX)maxX=x; if (z<minZ)minZ=z; if (z>maxZ)maxZ=z;
+  }
+  const pad = 3;
+  minX-=pad; maxX+=pad; minZ-=pad; maxZ+=pad;
+  const spanX = Math.max(maxX-minX, 1), spanZ = Math.max(maxZ-minZ, 1);
+
+  // Stats.
+  const actCounts = {};
+  for (const f of frames) for (const s of f.s){ actCounts[s[3]]=(actCounts[s[3]]||0)+1; }
+  document.getElementById('stats').innerHTML =
+    `<span class="stat"><b>${N}</b> players</span>` +
+    `<span class="stat"><b>${T}</b> ticks</span>` +
+    `<span class="stat">actions <b>${Object.values(actCounts).reduce((a,b)=>a+b,0)}</b></span>`;
+
+  // Legend.
+  const legend = document.getElementById('legend');
+  const order = ['walk','swing','settings','break','idle'];
+  legend.innerHTML = order.filter(a=>actCounts[a]).map(a =>
+    `<div class="row"><span class="swatch" style="background:${actionColor(a)}"></span>` +
+    `<span class="k">${a}</span><span class="count">${actCounts[a]||0}</span></div>`
+  ).join('') + `<div class="note">A radar dot is another player within 16 blocks, rotated so this player's facing points up — literally what each bot "sees" around it.</div>`;
+
+  // Build player cards.
+  const cardsEl = document.getElementById('cards');
+  const cards = players.map((name, i) => {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML =
+      `<div class="name"><span class="led"></span><span class="pname">${name}</span><span class="chip"></span></div>` +
+      `<canvas class="radar"></canvas>` +
+      `<div class="meta">` +
+        `<div class="vd">vd<span class="bar"><i></i></span><span class="val"></span></div>` +
+        `<div class="coords"></div>` +
+      `</div>`;
+    cardsEl.appendChild(el);
+    const rc = el.querySelector('canvas.radar');
+    return {
+      led: el.querySelector('.led'), chip: el.querySelector('.chip'),
+      vdbar: el.querySelector('.vd i'), vdval: el.querySelector('.vd .val'),
+      coords: el.querySelector('.coords'), rc, rctx: rc.getContext('2d')
+    };
+  });
+
+  const arena = document.getElementById('arena');
+  const actx = arena.getContext('2d');
+  function sizeCanvas(cv, cssW, cssH){
+    cv.width = Math.round(cssW*DPR); cv.height = Math.round(cssH*DPR);
+    cv.style.height = cssH + 'px';
+    const ctx = cv.getContext('2d'); ctx.setTransform(DPR,0,0,DPR,0,0); return ctx;
+  }
+  function layout(){
+    const aw = arena.clientWidth || 600;
+    const ah = Math.round(aw * (spanZ/spanX));
+    sizeCanvas(arena, aw, Math.max(260, Math.min(ah, 560)));
+    for (const c of cards){ const w = c.rc.clientWidth || 130; sizeCanvas(c.rc, w, w); }
+  }
+
+  const A2X = (x, w) => ( (x-minX)/spanX ) * w;
+  const A2Y = (z, h) => ( (z-minZ)/spanZ ) * h;
+
+  // Short position trails per player.
+  const TRAIL = 14;
+
+  function facing(yawDeg){ const r = yawDeg*Math.PI/180; return [-Math.sin(r), Math.cos(r)]; }
+
+  function drawArena(fi){
+    const w = arena.clientWidth, h = parseFloat(arena.style.height);
+    actx.clearRect(0,0,w,h);
+    // grid every 5 blocks
+    actx.strokeStyle = cssVar('--grid'); actx.lineWidth = 1;
+    const step = 5;
+    for (let gx = Math.ceil(minX/step)*step; gx<=maxX; gx+=step){ const px=A2X(gx,w); actx.beginPath(); actx.moveTo(px,0); actx.lineTo(px,h); actx.stroke(); }
+    for (let gz = Math.ceil(minZ/step)*step; gz<=maxZ; gz+=step){ const py=A2Y(gz,h); actx.beginPath(); actx.moveTo(0,py); actx.lineTo(w,py); actx.stroke(); }
+    // center marker (world spawn)
+    const ox=A2X(0,w), oy=A2Y(0,h);
+    actx.strokeStyle = cssVar('--ink-faint'); actx.lineWidth=1;
+    actx.beginPath(); actx.moveTo(ox-6,oy); actx.lineTo(ox+6,oy); actx.moveTo(ox,oy-6); actx.lineTo(ox,oy+6); actx.stroke();
+
+    const cur = frames[fi].s;
+    // trails
+    for (let i=0;i<N;i++){
+      actx.beginPath();
+      for (let t = Math.max(0, fi-TRAIL); t<=fi; t++){
+        const s = frames[t].s[i]; const px=A2X(s[0]-cx,w), py=A2Y(s[1]-cz,h);
+        if (t===Math.max(0,fi-TRAIL)) actx.moveTo(px,py); else actx.lineTo(px,py);
+      }
+      actx.strokeStyle = color2alpha(actionColor(cur[i][3]), 0.28); actx.lineWidth=1.5; actx.stroke();
+    }
+    // blips + facing
+    for (let i=0;i<N;i++){
+      const s = cur[i]; const px=A2X(s[0]-cx,w), py=A2Y(s[1]-cz,h); const col = actionColor(s[3]);
+      const [fx,fz] = facing(s[2]);
+      actx.strokeStyle = col; actx.lineWidth=2;
+      actx.beginPath(); actx.moveTo(px,py); actx.lineTo(px+fx*9, py+fz*9); actx.stroke();
+      actx.fillStyle = col; actx.beginPath(); actx.arc(px,py,3.4,0,7); actx.fill();
+    }
+  }
+
+  function drawRadar(c, fi, i){
+    const cur = frames[fi].s; const me = cur[i];
+    const w = c.rc.clientWidth, h = w; const cxp=w/2, cyp=h/2;
+    const R = 16, scale = (w/2 - 6)/R;
+    const ctx = c.rctx;
+    ctx.clearRect(0,0,w,h);
+    // rings
+    ctx.strokeStyle = cssVar('--line'); ctx.lineWidth=1;
+    for (const rr of [R/2, R]){ ctx.beginPath(); ctx.arc(cxp,cyp,rr*scale,0,7); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(cxp,cyp); ctx.lineTo(cxp,cyp-R*scale); ctx.strokeStyle=color2alpha(cssVar('--accent'),0.5); ctx.stroke();
+    // basis: forward & right
+    const yaw = me[2]*Math.PI/180; const f=[-Math.sin(yaw),Math.cos(yaw)], rgt=[Math.cos(yaw),Math.sin(yaw)];
+    for (let j=0;j<N;j++){
+      if (j===i) continue;
+      const o = cur[j];
+      const rx = (o[0]-me[0]) - 0, rz = (o[1]-me[1]);
+      const ahead = rx*f[0] + rz*f[1]; const side = rx*rgt[0] + rz*rgt[1];
+      if (Math.abs(ahead)>R || Math.abs(side)>R) continue;
+      const sx = cxp + side*scale, sy = cyp - ahead*scale;
+      ctx.fillStyle = color2alpha(actionColor(o[3]), 0.9);
+      ctx.beginPath(); ctx.arc(sx,sy,2.4,0,7); ctx.fill();
+    }
+    // self
+    ctx.fillStyle = actionColor(me[3]); ctx.beginPath(); ctx.arc(cxp,cyp,3.2,0,7); ctx.fill();
+  }
+
+  function updateCards(fi){
+    const cur = frames[fi].s;
+    for (let i=0;i<N;i++){
+      const s = cur[i], c = cards[i], col = actionColor(s[3]);
+      c.led.style.background = col;
+      c.chip.textContent = s[3]; c.chip.style.background = col;
+      c.chip.style.color = luminance(col) > 0.6 ? '#05110d' : '#f4fbf8';
+      const vd = s[4];
+      c.vdbar.style.width = Math.round(vd/32*100) + '%';
+      c.vdval.textContent = vd;
+      c.coords.textContent = `x ${(s[0]-cx).toFixed(1)}  z ${(s[1]-cz).toFixed(1)}  yaw ${s[2]}`;
+      drawRadar(c, fi, i);
+    }
+  }
+
+  // color helpers
+  function parseColor(str){
+    str = str.trim();
+    if (str.startsWith('#')){
+      let h = str.slice(1); if (h.length===3) h = h.split('').map(x=>x+x).join('');
+      return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+    }
+    const m = str.match(/\d+/g); return m ? m.slice(0,3).map(Number) : [140,140,140];
+  }
+  function color2alpha(str, a){ const [r,g,b]=parseColor(str); return `rgba(${r},${g},${b},${a})`; }
+  function luminance(str){ const [r,g,b]=parseColor(str); return (0.299*r+0.587*g+0.114*b)/255; }
+
+  // Transport
+  let fi = 0, playing = true, speed = 1, acc = 0, last = performance.now();
+  const scrub = document.getElementById('scrub'), tnow=document.getElementById('tnow'), ttot=document.getElementById('ttot');
+  const playBtn = document.getElementById('play');
+  scrub.max = T-1; ttot.textContent = frames[T-1].t;
+
+  function render(){ drawArena(fi); updateCards(fi); scrub.value=fi; tnow.textContent = frames[fi].t; }
+  function setFrame(v){ fi = Math.max(0, Math.min(T-1, v|0)); render(); }
+
+  playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '▮▮' : '▶'; playBtn.style.fontSize = playing ? '11px' : '16px'; last=performance.now(); };
+  playBtn.textContent = '▮▮'; playBtn.style.fontSize='11px';
+  scrub.oninput = () => { playing=false; playBtn.textContent='▶'; playBtn.style.fontSize='16px'; setFrame(+scrub.value); };
+  document.getElementById('speed').onchange = e => speed = +e.target.value;
+
+  const BASE_FPS = 20; // trace is 1 frame per server tick (20 tps)
+  function loop(now){
+    const dt = (now-last)/1000; last = now;
+    if (playing){
+      acc += dt * BASE_FPS * speed;
+      if (acc >= 1){ const adv = Math.floor(acc); acc -= adv; fi += adv; if (fi>=T){ fi = 0; } render(); }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  function relayoutAndRender(){ layout(); render(); }
+  window.addEventListener('resize', relayoutAndRender);
+  new ResizeObserver(()=>layout()).observe(arena);
+
+  document.getElementById('empty').hidden = true;
+  document.getElementById('app').hidden = false;
+  layout(); render(); requestAnimationFrame(loop);
+}
+
+loadTrace().then(t => { if (t && t.frames && t.frames.length) main(t); });
+</script>
