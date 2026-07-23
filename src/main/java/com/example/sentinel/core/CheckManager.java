@@ -11,9 +11,15 @@ import net.minecraft.world.phys.Vec3;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
+import net.minecraft.world.entity.Entity;
+
 import com.example.sentinel.alert.AlertSink;
+import com.example.sentinel.checks.AutoClickerCheck;
 import com.example.sentinel.checks.FlyCheck;
+import com.example.sentinel.checks.HitThroughWallsCheck;
+import com.example.sentinel.checks.KillAuraAngleCheck;
 import com.example.sentinel.checks.NoFallCheck;
+import com.example.sentinel.checks.ReachCombatCheck;
 import com.example.sentinel.checks.SpeedCheck;
 import com.example.sentinel.checks.TimerCheck;
 import com.example.sentinel.config.SentinelConfig;
@@ -30,10 +36,16 @@ public final class CheckManager {
 	private static final List<MovementCheck> CHECKS = List.of(
 			new SpeedCheck(), new FlyCheck(), new NoFallCheck(), new TimerCheck());
 
+	private static final List<CombatCheck> COMBAT_CHECKS = List.of(
+			new ReachCombatCheck(), new HitThroughWallsCheck(), new KillAuraAngleCheck(), new AutoClickerCheck());
+
 	/** Max timer credit banked during idle (1s), so a paused client can't hoard packet budget. */
 	private static final double TIMER_CAP = 20.0;
 
 	private static final ConcurrentMap<UUID, PlayerData> DATA = new ConcurrentHashMap<>();
+
+	/** Server tick counter, advanced each END_SERVER_TICK; used for CPS/time-window checks. */
+	private static volatile long currentTick;
 
 	private CheckManager() {
 	}
@@ -114,11 +126,56 @@ public final class CheckManager {
 		return false;
 	}
 
+	/**
+	 * Process one attack packet. Returns {@code true} if the hit should be cancelled (a combat check
+	 * flagged past threshold) — the mixin then cancels vanilla handling so no damage is dealt.
+	 */
+	public static boolean onAttack(ServerPlayer player, Entity target) {
+		SentinelConfig cfg = SentinelConfig.get();
+		if (!cfg.enabled || target == null || target == player) {
+			return false;
+		}
+		PlayerData data = dataFor(player);
+		boolean cancel = false;
+		for (CombatCheck check : COMBAT_CHECKS) {
+			SentinelConfig.CheckSettings s = check.settings(cfg);
+			if (!s.enabled) {
+				continue;
+			}
+			Violation v = check.detect(player, target, data, currentTick);
+			if (!v.isFlag()) {
+				data.clearBuffer(check.id());
+				continue;
+			}
+			AlertSink.verbose(player, v);
+			if (!data.bufferReached(check.id(), s.buffer)) {
+				continue;
+			}
+			data.addVl(check.id(), v.weight());
+			data.incrementFlag(check.id());
+			double vl = data.vl(check.id());
+			AlertSink.alert(player, v, vl);
+			if (!cfg.silent && vl >= s.setbackVl) {
+				cancel = true;
+				data.resetVl(check.id());
+				data.clearBuffer(check.id());
+			}
+		}
+		return cancel;
+	}
+
 	private static void onServerTick(net.minecraft.server.MinecraftServer server) {
+		currentTick++;
 		SentinelConfig cfg = SentinelConfig.get();
 		for (PlayerData data : DATA.values()) {
 			data.creditTimer(TIMER_CAP);
 			for (MovementCheck check : CHECKS) {
+				double perTick = check.settings(cfg).decayPerSecond / 20.0;
+				if (perTick > 0) {
+					data.decayVl(check.id(), perTick);
+				}
+			}
+			for (CombatCheck check : COMBAT_CHECKS) {
 				double perTick = check.settings(cfg).decayPerSecond / 20.0;
 				if (perTick > 0) {
 					data.decayVl(check.id(), perTick);

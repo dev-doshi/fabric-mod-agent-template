@@ -58,11 +58,20 @@ public class SentinelMovementGameTest {
 		return Vec3.atBottomCenterOf(level.getRespawnData().pos());
 	}
 
+	/**
+	 * Each test gets its OWN arena, offset along X. Gametests run concurrently against one server, so
+	 * tests sharing one patch of world would clobber each other's blocks. Indices here are kept clear
+	 * of the combat suite's arenas.
+	 */
+	private static Vec3 arena(ServerLevel level, int index) {
+		return buildPlatform(level, spawnCenter(level).add(index * 40.0, 0, 0));
+	}
+
 	// --- The false-positive guard: legitimate play must never flag. ---
 	@GameTest(maxTicks = 140)
 	public void legitMovementProducesNoFalsePositives(GameTestHelper helper) {
 		ServerLevel level = helper.getLevel().getServer().overworld();
-		Vec3 center = buildPlatform(level, spawnCenter(level));
+		Vec3 center = arena(level, 10);
 
 		Simulation sim = Simulation.spawn(level, 8, center, 2.0, 100L).start((p, t, r) -> {
 			Vec3 cur = p.entity().position();
@@ -83,7 +92,7 @@ public class SentinelMovementGameTest {
 	@GameTest(maxTicks = 140)
 	public void speedHackIsFlagged(GameTestHelper helper) {
 		ServerLevel level = helper.getLevel().getServer().overworld();
-		Vec3 center = buildPlatform(level, spawnCenter(level));
+		Vec3 center = arena(level, 11);
 
 		Simulation sim = Simulation.spawn(level, 6, center, 2.0, 200L).start((p, t, r) ->
 				// ~1.5 blocks/tick horizontal — far beyond any legal walk/sprint speed.
@@ -101,7 +110,7 @@ public class SentinelMovementGameTest {
 	@GameTest(maxTicks = 160)
 	public void flyHackIsFlagged(GameTestHelper helper) {
 		ServerLevel level = helper.getLevel().getServer().overworld();
-		Vec3 center = buildPlatform(level, spawnCenter(level));
+		Vec3 center = arena(level, 12);
 
 		Simulation sim = Simulation.spawn(level, 6, center, 2.0, 300L).start((p, t, r) ->
 				// Rising through the air while claiming to be airborne, never falling — flight.
@@ -119,7 +128,7 @@ public class SentinelMovementGameTest {
 	@GameTest(maxTicks = 140)
 	public void noFallSpoofIsFlagged(GameTestHelper helper) {
 		ServerLevel level = helper.getLevel().getServer().overworld();
-		Vec3 center = buildPlatform(level, spawnCenter(level));
+		Vec3 center = arena(level, 13);
 		Vec3 high = new Vec3(center.x, center.y + 12, center.z);
 
 		Simulation sim = Simulation.spawn(level, 6, high, 2.0, 400L).start((p, t, r) ->
@@ -138,7 +147,7 @@ public class SentinelMovementGameTest {
 	@GameTest(maxTicks = 140)
 	public void timerHackIsFlagged(GameTestHelper helper) {
 		ServerLevel level = helper.getLevel().getServer().overworld();
-		Vec3 center = buildPlatform(level, spawnCenter(level));
+		Vec3 center = arena(level, 14);
 
 		Simulation sim = Simulation.spawn(level, 6, center, 2.0, 500L).start((p, t, r) -> {
 			// Five movement packets in a single tick — the client is outrunning real time.

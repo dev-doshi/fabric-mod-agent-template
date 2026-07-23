@@ -18,6 +18,6 @@ public final class SentinelMod implements ModInitializer {
 		SentinelConfig.load();
 		CheckManager.init();
 		SentinelCommand.register();
-		ExampleMod.LOGGER.info("[sentinel] Anticheat engine online ({} movement checks).", 4);
+		ExampleMod.LOGGER.info("[sentinel] Anticheat engine online (4 movement + 4 combat checks).");
 	}
 }

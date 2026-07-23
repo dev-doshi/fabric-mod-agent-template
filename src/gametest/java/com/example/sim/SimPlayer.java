@@ -113,6 +113,18 @@ public final class SimPlayer {
 		lastAction = "swing";
 	}
 
+	/** Attack a target entity via a real attack packet (drives the combat checks). */
+	public void attack(net.minecraft.world.entity.Entity target) {
+		player.connection.handleAttack(new net.minecraft.network.protocol.game.ServerboundAttackPacket(target.getId()));
+		lastAction = "attack";
+	}
+
+	/** Set look direction via a real rotation packet (for facing / kill-aura tests). */
+	public void lookAt(float yaw, float pitch) {
+		player.connection.handleMovePlayer(new ServerboundMovePlayerPacket.Rot(yaw, pitch, true, false));
+		lastAction = "look";
+	}
+
 	/** Start destroying a block at the given position (a real player-action packet). */
 	public void startBreak(net.minecraft.core.BlockPos pos, net.minecraft.core.Direction face) {
 		player.connection.handlePlayerAction(new ServerboundPlayerActionPacket(

@@ -31,14 +31,17 @@ scripts/test.sh all        # everything
 ```
 CI runs all three tiers — see [.github/workflows/build.yml](.github/workflows/build.yml).
 
-## Sentinel anticheat (P0+P1: server-authoritative movement)
+## Sentinel anticheat (P0–P2: server-authoritative movement + combat)
 A dynamic, highly-configurable, EULA-compliant anticheat built into the mod and tested by the sim
 harness spawning bots that *cheat on purpose*. See `src/main/java/com/example/sentinel/`.
 
 - **Server-authoritative prediction**, not client trust: a mixin feeds `handleMovePlayer` to a check
   engine that compares each move to a lag-compensated, attribute-derived valid envelope.
-- **Checks (P1):** Speed, Fly, NoFall, Timer. Violation levels with decay + buffering; default
-  response is **setback + silent staff alert** (no auto-ban) — near-zero false-positive risk.
+- **Movement checks (P1):** Speed, Fly, NoFall, Timer. Default response is **setback + silent staff
+  alert** (no auto-ban) — near-zero false-positive risk.
+- **Combat checks (P2):** Reach, HitThroughWalls (line-of-sight — vanilla does *not* check this),
+  KillAura (attack-angle — vanilla does not check facing), AutoClicker (CPS + click-interval
+  regularity). Default response is **cancel the hit + alert**. Violation levels with decay + buffering.
 - **Configurable + hot-reload:** per-check `enabled`/`setbackVl`/`decay`/`buffer` in `sentinel.json`;
   `/sentinel reload|alerts|verbose|vl <player>`.
 - **EULA-compliant:** behavioral only — no memory/host scanning; client attestation (deferred P5) is

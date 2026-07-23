@@ -9,6 +9,7 @@
 			"com.example.ExampleGameTest",
 			"com.example.ExampleSimGameTest",
 			"com.example.SentinelMovementGameTest",
+			"com.example.SentinelCombatGameTest",
 			"com.example.ExampleSimViewerGameTest"
 		],
 		"fabric-client-gametest": [

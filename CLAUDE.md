@@ -110,7 +110,8 @@ src/main/java/com/example/          COMMON (server+client) code
   sentinel/                         Sentinel anticheat (server-authoritative, EULA-compliant)
     core/ CheckManager, PlayerData, ViolationLevels, MoveContext, MovementCheck
     physics/ MovementSimulator      valid movement envelope (attributes + lag-comp)
-    checks/ Speed, Fly, NoFall, Timer
+    checks/ movement: Speed, Fly, NoFall, Timer
+            combat:   Reach, HitThroughWalls, KillAuraAngle, AutoClicker
     mixin/ ServerGamePacketListenerImplMixin   feeds handleMovePlayer to the engine
     config/ SentinelConfig (hot-reload)  command/ SentinelCommand  alert/ AlertSink
   ExampleMod.java                   main entrypoint; MOD_ID + id() helper

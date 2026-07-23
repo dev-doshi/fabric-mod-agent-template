@@ -41,6 +41,21 @@ public final class SentinelConfig {
 	public CheckSettings noFall = new CheckSettings(true, 8.0, 2.0, 2);
 	public CheckSettings timer = new CheckSettings(true, 15.0, 5.0, 6);
 
+	// --- Combat (P2) ---
+	public CheckSettings reach = new CheckSettings(true, 6.0, 2.0, 2);
+	public CheckSettings killAura = new CheckSettings(true, 6.0, 2.0, 2);
+	public CheckSettings hitThroughWalls = new CheckSettings(true, 6.0, 2.0, 2);
+	public CheckSettings autoClicker = new CheckSettings(true, 10.0, 3.0, 4);
+
+	/** Max legal attack reach (blocks, eye-to-hitbox). Vanilla survival is 3.0. */
+	public double maxReachBlocks = 3.0;
+	/** Extra reach slack per 50ms ping (lag compensation). */
+	public double reachPerPingTick = 0.02;
+	/** Max angle (degrees) between look direction and the target when attacking. */
+	public double maxAttackAngleDeg = 75.0;
+	/** Clicks-per-second above which the auto-clicker check flags. */
+	public double maxCps = 16.0;
+
 	/** Tunables shared by every check. */
 	public static final class CheckSettings {
 		public boolean enabled;

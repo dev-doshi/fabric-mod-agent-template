@@ -34,6 +34,11 @@ public final class PlayerData {
 	// Cumulative confirmed flags per check — never reset by setback, so tests/staff have a stable signal.
 	private final Map<String, Integer> flags = new HashMap<>();
 
+	// Attack "moments" (fractional server ticks) over the last ~second, for CPS / click-entropy.
+	private final java.util.ArrayDeque<Double> attackMoments = new java.util.ArrayDeque<>();
+	private int intraTickAttackSeq;
+	private long lastAttackTickSeen = -1;
+
 	public PlayerData(Vec3 spawn) {
 		this.lastValidPos = spawn;
 		this.lastPos = spawn;
@@ -93,5 +98,51 @@ public final class PlayerData {
 
 	public synchronized int totalFlags() {
 		return flags.values().stream().mapToInt(Integer::intValue).sum();
+	}
+
+	/**
+	 * Record an attack at {@code currentTick} and return the current CPS (attacks in the last 20
+	 * ticks = 1 second). Multiple attacks in one tick are ordered by an intra-tick sequence so their
+	 * moments are distinct.
+	 */
+	public synchronized double recordAttackAndGetCps(long currentTick) {
+		if (currentTick != lastAttackTickSeen) {
+			intraTickAttackSeq = 0;
+			lastAttackTickSeen = currentTick;
+		}
+		double moment = currentTick + Math.min(0.99, intraTickAttackSeq++ / 100.0);
+		attackMoments.addLast(moment);
+		double cutoff = moment - 20.0;
+		while (!attackMoments.isEmpty() && attackMoments.peekFirst() < cutoff) {
+			attackMoments.removeFirst();
+		}
+		return attackMoments.size();
+	}
+
+	/**
+	 * Coefficient of variation of the inter-attack intervals in the window (0 = perfectly regular,
+	 * like a macro; higher = more human jitter). Returns a large value when too few samples.
+	 */
+	public synchronized double attackIntervalRegularity() {
+		if (attackMoments.size() < 4) {
+			return Double.MAX_VALUE;
+		}
+		Double[] m = attackMoments.toArray(new Double[0]);
+		double sum = 0;
+		int n = m.length - 1;
+		double[] gaps = new double[n];
+		for (int i = 0; i < n; i++) {
+			gaps[i] = m[i + 1] - m[i];
+			sum += gaps[i];
+		}
+		double mean = sum / n;
+		if (mean <= 0) {
+			return 0.0;
+		}
+		double var = 0;
+		for (double g : gaps) {
+			var += (g - mean) * (g - mean);
+		}
+		return Math.sqrt(var / n) / mean; // coefficient of variation
 	}
 }

@@ -66,8 +66,9 @@ public final class SentinelCommand {
 				}
 				var data = CheckManager.dataFor(target);
 				ctx.getSource().sendSuccess(() -> Component.literal(String.format(
-						"§7[Sentinel] %s VL — speed %.1f, fly %.1f, nofall %.1f, timer %.1f",
-						name, data.vl("speed"), data.vl("fly"), data.vl("nofall"), data.vl("timer"))), false);
+						"§7[Sentinel] %s VL — speed %.1f fly %.1f nofall %.1f timer %.1f | reach %.1f killaura %.1f walls %.1f autoclick %.1f",
+						name, data.vl("speed"), data.vl("fly"), data.vl("nofall"), data.vl("timer"),
+						data.vl("reach"), data.vl("killaura"), data.vl("hitthroughwalls"), data.vl("autoclicker"))), false);
 				return 1;
 			})));
 

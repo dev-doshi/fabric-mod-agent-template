@@ -83,4 +83,36 @@ class SentinelConfigTest {
 		Assertions.assertEquals(2, d.flagCount("speed"));
 		Assertions.assertEquals(3, d.totalFlags());
 	}
+
+	@Test
+	void cpsCountsAttacksInOneSecondWindow() {
+		PlayerData d = new PlayerData(Vec3.ZERO);
+		double cps = 0;
+		// 30 attacks on tick 0 — all inside the 20-tick window.
+		for (int i = 0; i < 30; i++) {
+			cps = d.recordAttackAndGetCps(0);
+		}
+		Assertions.assertEquals(30.0, cps);
+		// Advance 25 ticks and attack once — the tick-0 batch has aged out of the 20-tick window.
+		double later = d.recordAttackAndGetCps(25);
+		Assertions.assertTrue(later < 5.0, "old attacks should have aged out, got " + later);
+	}
+
+	@Test
+	void regularTimingHasLowVariationIrregularHasHigh() {
+		PlayerData regular = new PlayerData(Vec3.ZERO);
+		for (int t = 0; t < 10; t++) {
+			regular.recordAttackAndGetCps(t); // one per tick — perfectly regular
+		}
+		Assertions.assertTrue(regular.attackIntervalRegularity() < 0.10,
+				"regular clicking should read as low CoV");
+
+		PlayerData jittery = new PlayerData(Vec3.ZERO);
+		long[] ticks = {0, 1, 3, 4, 7, 8, 12, 13};
+		for (long t : ticks) {
+			jittery.recordAttackAndGetCps(t);
+		}
+		Assertions.assertTrue(jittery.attackIntervalRegularity() > 0.10,
+				"irregular clicking should read as higher CoV");
+	}
 }

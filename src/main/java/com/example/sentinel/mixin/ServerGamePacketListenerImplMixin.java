@@ -1,8 +1,10 @@
 package com.example.sentinel.mixin;
 
+import net.minecraft.network.protocol.game.ServerboundAttackPacket;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.world.entity.Entity;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -39,4 +41,16 @@ public abstract class ServerGamePacketListenerImplMixin {
 			ci.cancel();
 		}
 	}
+
+	@Inject(method = "handleAttack", at = @At("HEAD"), cancellable = true)
+	private void sentinel$onAttack(ServerboundAttackPacket packet, CallbackInfo ci) {
+		if (player == null || !player.level().getServer().isSameThread()) {
+			return;
+		}
+		Entity target = player.level().getEntityOrPart(packet.entityId());
+		if (target != null && CheckManager.onAttack(player, target)) {
+			ci.cancel(); // reject the hit — no damage dealt
+		}
+	}
 }
+
