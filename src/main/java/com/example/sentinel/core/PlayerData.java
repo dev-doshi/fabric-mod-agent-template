@@ -39,6 +39,18 @@ public final class PlayerData {
 	private int intraTickAttackSeq;
 	private long lastAttackTickSeen = -1;
 
+	// --- World interaction state (P3) ---
+	/** Tick the current block-break started, and where — for FastBreak timing. */
+	public long breakStartTick = -1;
+	public net.minecraft.core.BlockPos breakStartPos;
+	/** Server ticks at which blocks were destroyed, for the Nuker rate window. */
+	private final java.util.ArrayDeque<Long> breakTicks = new java.util.ArrayDeque<>();
+	/** Server ticks of placement attempts, for the FastPlace rate window. */
+	private final java.util.ArrayDeque<Long> placeTicks = new java.util.ArrayDeque<>();
+	/** Rolling ore/total counters for the X-ray mining-ratio heuristic. */
+	private int minedTotal;
+	private int minedOres;
+
 	public PlayerData(Vec3 spawn) {
 		this.lastValidPos = spawn;
 		this.lastPos = spawn;
@@ -117,6 +129,42 @@ public final class PlayerData {
 			attackMoments.removeFirst();
 		}
 		return attackMoments.size();
+	}
+
+	/** Record a destroyed block and return how many were destroyed in the last {@code window} ticks. */
+	public synchronized int recordBreakAndGetRate(long currentTick, long window) {
+		breakTicks.addLast(currentTick);
+		while (!breakTicks.isEmpty() && breakTicks.peekFirst() < currentTick - window) {
+			breakTicks.removeFirst();
+		}
+		return breakTicks.size();
+	}
+
+	/** Record a placement attempt and return how many happened in the last {@code window} ticks. */
+	public synchronized int recordPlaceAndGetRate(long currentTick, long window) {
+		placeTicks.addLast(currentTick);
+		while (!placeTicks.isEmpty() && placeTicks.peekFirst() < currentTick - window) {
+			placeTicks.removeFirst();
+		}
+		return placeTicks.size();
+	}
+
+	/** Record a mined block for the X-ray ratio. Returns the ore fraction so far. */
+	public synchronized double recordMinedAndGetOreRatio(boolean isOre) {
+		minedTotal++;
+		if (isOre) {
+			minedOres++;
+		}
+		return minedTotal == 0 ? 0.0 : (double) minedOres / minedTotal;
+	}
+
+	public synchronized int minedTotal() {
+		return minedTotal;
+	}
+
+	public synchronized void resetMiningStats() {
+		minedTotal = 0;
+		minedOres = 0;
 	}
 
 	/**

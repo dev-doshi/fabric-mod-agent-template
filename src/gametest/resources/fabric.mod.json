@@ -10,6 +10,7 @@
 			"com.example.ExampleSimGameTest",
 			"com.example.SentinelMovementGameTest",
 			"com.example.SentinelCombatGameTest",
+			"com.example.SentinelWorldGameTest",
 			"com.example.ExampleSimViewerGameTest"
 		],
 		"fabric-client-gametest": [

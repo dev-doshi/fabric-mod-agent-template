@@ -31,7 +31,7 @@ scripts/test.sh all        # everything
 ```
 CI runs all three tiers — see [.github/workflows/build.yml](.github/workflows/build.yml).
 
-## Sentinel anticheat (P0–P2: server-authoritative movement + combat)
+## Sentinel anticheat (P0–P3: movement + combat + world/mining)
 A dynamic, highly-configurable, EULA-compliant anticheat built into the mod and tested by the sim
 harness spawning bots that *cheat on purpose*. See `src/main/java/com/example/sentinel/`.
 
@@ -42,6 +42,10 @@ harness spawning bots that *cheat on purpose*. See `src/main/java/com/example/se
 - **Combat checks (P2):** Reach, HitThroughWalls (line-of-sight — vanilla does *not* check this),
   KillAura (attack-angle — vanilla does not check facing), AutoClicker (CPS + click-interval
   regularity). Default response is **cancel the hit + alert**. Violation levels with decay + buffering.
+- **World checks (P3):** FastBreak (times each break against vanilla's own `getDestroyProgress`
+  oracle), Nuker (blocks/second cap), FastPlace (placements/second cap), and an **advisory** X-ray
+  ore-ratio heuristic. X-ray is *not* provable server-side — that check never auto-punishes; it flags
+  for staff review only. Real prevention is chunk obfuscation (P4, not yet built).
 - **Configurable + hot-reload:** per-check `enabled`/`setbackVl`/`decay`/`buffer` in `sentinel.json`;
   `/sentinel reload|alerts|verbose|vl <player>`.
 - **EULA-compliant:** behavioral only — no memory/host scanning; client attestation (deferred P5) is

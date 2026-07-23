@@ -56,6 +56,22 @@ public final class SentinelConfig {
 	/** Clicks-per-second above which the auto-clicker check flags. */
 	public double maxCps = 16.0;
 
+	// --- World / mining (P3) ---
+	public CheckSettings fastBreak = new CheckSettings(true, 8.0, 2.0, 2);
+	public CheckSettings nuker = new CheckSettings(true, 8.0, 2.0, 2);
+	public CheckSettings fastPlace = new CheckSettings(true, 8.0, 2.0, 3);
+	/** X-ray is a review heuristic, not proof — never set it to auto-punish. */
+	public CheckSettings xray = new CheckSettings(true, 999.0, 0.5, 1);
+
+	/** Max blocks destroyed per second before the nuker check flags. */
+	public int maxBlocksPerSecond = 8;
+	/** Max block placements per second before the fast-place check flags. */
+	public int maxPlacementsPerSecond = 12;
+	/** Blocks mined before the X-ray ratio is evaluated. */
+	public int xraySampleSize = 40;
+	/** Ore fraction above which mining looks implausible (advisory). */
+	public double maxOreRatio = 0.40;
+
 	/** Tunables shared by every check. */
 	public static final class CheckSettings {
 		public boolean enabled;

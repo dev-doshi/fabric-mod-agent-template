@@ -59,6 +59,7 @@ public class SentinelCombatGameTest {
 		ServerLevel level = helper.getLevel().getServer().overworld();
 		Vec3 center = arena(level, 0);
 		SimPlayer victim = SimPlayer.join(level, "ReachVictim", center.add(0, 0, 6));
+		victim.setInvulnerable(true);
 
 		Simulation sim = Simulation.spawn(level, 4, center, 0.5, 700L).start((p, t, r) -> {
 			if (t % 3 == 0) {
@@ -82,6 +83,7 @@ public class SentinelCombatGameTest {
 		ServerLevel level = helper.getLevel().getServer().overworld();
 		Vec3 center = arena(level, 1);
 		SimPlayer victim = SimPlayer.join(level, "AuraVictim", center.add(0, 0, -3));
+		victim.setInvulnerable(true);
 
 		Simulation sim = Simulation.spawn(level, 4, center, 0.5, 800L).start((p, t, r) -> {
 			if (t % 3 == 0) {
@@ -105,6 +107,7 @@ public class SentinelCombatGameTest {
 		ServerLevel level = helper.getLevel().getServer().overworld();
 		Vec3 center = arena(level, 2);
 		SimPlayer victim = SimPlayer.join(level, "WallVictim", center.add(0, 0, 2.6));
+		victim.setInvulnerable(true);
 		// Wall of stone between attacker cluster (z≈center) and victim (z+2.6).
 		int wx = (int) Math.floor(center.x);
 		int wz = (int) Math.floor(center.z + 1.3);
@@ -137,6 +140,7 @@ public class SentinelCombatGameTest {
 		ServerLevel level = helper.getLevel().getServer().overworld();
 		Vec3 center = arena(level, 3);
 		SimPlayer victim = SimPlayer.join(level, "ClickVictim", center.add(0, 0, 2));
+		victim.setInvulnerable(true);
 
 		Simulation sim = Simulation.spawn(level, 4, center, 0.4, 1000L).start((p, t, r) -> {
 			for (int i = 0; i < 5; i++) {
@@ -160,6 +164,7 @@ public class SentinelCombatGameTest {
 		ServerLevel level = helper.getLevel().getServer().overworld();
 		Vec3 center = arena(level, 4);
 		SimPlayer victim = SimPlayer.join(level, "LegitVictim", center.add(0, 0, 2));
+		victim.setInvulnerable(true);
 
 		Simulation sim = Simulation.spawn(level, 4, center, 0.4, 1100L).start((p, t, r) -> {
 			if (t % 8 == 0) { // ~2.5 CPS, well within human range

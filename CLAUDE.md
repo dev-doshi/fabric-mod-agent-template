@@ -112,6 +112,7 @@ src/main/java/com/example/          COMMON (server+client) code
     physics/ MovementSimulator      valid movement envelope (attributes + lag-comp)
     checks/ movement: Speed, Fly, NoFall, Timer
             combat:   Reach, HitThroughWalls, KillAuraAngle, AutoClicker
+            world:    FastBreak, Nuker, FastPlace, XrayHeuristic (advisory)
     mixin/ ServerGamePacketListenerImplMixin   feeds handleMovePlayer to the engine
     config/ SentinelConfig (hot-reload)  command/ SentinelCommand  alert/ AlertSink
   ExampleMod.java                   main entrypoint; MOD_ID + id() helper

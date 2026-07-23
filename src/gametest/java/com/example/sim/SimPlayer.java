@@ -53,9 +53,22 @@ public final class SimPlayer {
 		// placeNewPlayer wires a real ServerGamePacketListenerImpl over our fake connection,
 		// adds the player to the PlayerList, and spawns it into the world.
 		server.getPlayerList().placeNewPlayer(new SimConnection(), player, new CommonListenerCookie(profile, 0, info, false));
+		// The gametest world is created in CREATIVE (see GameTestServer), but a realistic bot — and
+		// anything an anticheat should be tested against — plays in survival.
+		player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
 		SimPlayer sim = new SimPlayer(player);
 		sim.intendedPos = pos;
 		return sim;
+	}
+
+	/** Set this bot's game mode (e.g. CREATIVE to model a staff member). */
+	public void setGameMode(net.minecraft.world.level.GameType mode) {
+		player.setGameMode(mode);
+	}
+
+	/** Make this bot immune to damage — useful for a victim bot that must survive a whole test. */
+	public void setInvulnerable(boolean invulnerable) {
+		player.setInvulnerable(invulnerable);
 	}
 
 	public ServerPlayer entity() {
@@ -130,6 +143,29 @@ public final class SimPlayer {
 		player.connection.handlePlayerAction(new ServerboundPlayerActionPacket(
 				ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, pos, face, 0));
 		lastAction = "break";
+	}
+
+	/** Finish destroying a block (real STOP_DESTROY_BLOCK packet). */
+	public void stopBreak(net.minecraft.core.BlockPos pos, net.minecraft.core.Direction face) {
+		player.connection.handlePlayerAction(new ServerboundPlayerActionPacket(
+				ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, pos, face, 0));
+		lastAction = "break";
+	}
+
+	/** Start and finish a break in the same tick — the instant-mine (fast-break / nuker) cheat. */
+	public void instantBreak(net.minecraft.core.BlockPos pos, net.minecraft.core.Direction face) {
+		startBreak(pos, face);
+		stopBreak(pos, face);
+		lastAction = "instabreak";
+	}
+
+	/** Attempt to use the held item against a block face (real placement packet). */
+	public void placeAt(net.minecraft.core.BlockPos pos, net.minecraft.core.Direction face) {
+		net.minecraft.world.phys.BlockHitResult hit = new net.minecraft.world.phys.BlockHitResult(
+				net.minecraft.world.phys.Vec3.atCenterOf(pos), face, pos, false);
+		player.connection.handleUseItemOn(
+				new net.minecraft.network.protocol.game.ServerboundUseItemOnPacket(InteractionHand.MAIN_HAND, hit, 0));
+		lastAction = "place";
 	}
 
 	/** Change client settings (language, view distance, etc.) via a real settings packet. */

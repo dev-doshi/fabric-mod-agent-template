@@ -15,13 +15,17 @@ import net.minecraft.world.entity.Entity;
 
 import com.example.sentinel.alert.AlertSink;
 import com.example.sentinel.checks.AutoClickerCheck;
+import com.example.sentinel.checks.FastBreakCheck;
+import com.example.sentinel.checks.FastPlaceCheck;
 import com.example.sentinel.checks.FlyCheck;
 import com.example.sentinel.checks.HitThroughWallsCheck;
 import com.example.sentinel.checks.KillAuraAngleCheck;
 import com.example.sentinel.checks.NoFallCheck;
+import com.example.sentinel.checks.NukerCheck;
 import com.example.sentinel.checks.ReachCombatCheck;
 import com.example.sentinel.checks.SpeedCheck;
 import com.example.sentinel.checks.TimerCheck;
+import com.example.sentinel.checks.XrayHeuristicCheck;
 import com.example.sentinel.config.SentinelConfig;
 
 /**
@@ -38,6 +42,9 @@ public final class CheckManager {
 
 	private static final List<CombatCheck> COMBAT_CHECKS = List.of(
 			new ReachCombatCheck(), new HitThroughWallsCheck(), new KillAuraAngleCheck(), new AutoClickerCheck());
+
+	private static final List<WorldCheck> WORLD_CHECKS = List.of(
+			new FastBreakCheck(), new NukerCheck(), new FastPlaceCheck(), new XrayHeuristicCheck());
 
 	/** Max timer credit banked during idle (1s), so a paused client can't hoard packet budget. */
 	private static final double TIMER_CAP = 20.0;
@@ -164,6 +171,57 @@ public final class CheckManager {
 		return cancel;
 	}
 
+	/**
+	 * Process a world interaction (block break start/stop, or a placement attempt). Returns
+	 * {@code true} if it should be cancelled (a world check flagged past threshold).
+	 */
+	public static boolean onBlockAction(ServerPlayer player, BlockContext.Kind kind, net.minecraft.core.BlockPos pos) {
+		SentinelConfig cfg = SentinelConfig.get();
+		if (!cfg.enabled) {
+			return false;
+		}
+		PlayerData data = dataFor(player);
+
+		if (kind == BlockContext.Kind.BREAK_START) {
+			// Remember when/where mining began so FastBreak can time it; no checks fire on start.
+			data.breakStartTick = currentTick;
+			data.breakStartPos = pos.immutable();
+			return false;
+		}
+
+		BlockContext ctx = new BlockContext(kind, pos, player.level().getBlockState(pos), currentTick);
+		boolean cancel = false;
+		for (WorldCheck check : WORLD_CHECKS) {
+			SentinelConfig.CheckSettings s = check.settings(cfg);
+			if (!s.enabled) {
+				continue;
+			}
+			Violation v = check.detect(player, data, ctx);
+			if (!v.isFlag()) {
+				data.clearBuffer(check.id());
+				continue;
+			}
+			AlertSink.verbose(player, v);
+			if (!data.bufferReached(check.id(), s.buffer)) {
+				continue;
+			}
+			data.addVl(check.id(), v.weight());
+			data.incrementFlag(check.id());
+			double vl = data.vl(check.id());
+			AlertSink.alert(player, v, vl);
+			if (!cfg.silent && vl >= s.setbackVl) {
+				cancel = true;
+				data.resetVl(check.id());
+				data.clearBuffer(check.id());
+			}
+		}
+		if (kind == BlockContext.Kind.BREAK_STOP) {
+			data.breakStartTick = -1;
+			data.breakStartPos = null;
+		}
+		return cancel;
+	}
+
 	private static void onServerTick(net.minecraft.server.MinecraftServer server) {
 		currentTick++;
 		SentinelConfig cfg = SentinelConfig.get();
@@ -176,6 +234,12 @@ public final class CheckManager {
 				}
 			}
 			for (CombatCheck check : COMBAT_CHECKS) {
+				double perTick = check.settings(cfg).decayPerSecond / 20.0;
+				if (perTick > 0) {
+					data.decayVl(check.id(), perTick);
+				}
+			}
+			for (WorldCheck check : WORLD_CHECKS) {
 				double perTick = check.settings(cfg).decayPerSecond / 20.0;
 				if (perTick > 0) {
 					data.decayVl(check.id(), perTick);
