@@ -7,19 +7,17 @@ import com.example.sentinel.core.MoveContext;
 import com.example.sentinel.core.MovementCheck;
 import com.example.sentinel.core.PlayerData;
 import com.example.sentinel.core.Violation;
+import com.example.sentinel.physics.MovementPredictor;
 import com.example.sentinel.physics.MovementSimulator;
 
 /**
- * Flags sustained airborne hovering or ascent with no legal cause (fly/hover). A player with no
- * ground support who is not falling for several consecutive ticks is not obeying gravity.
+ * Flags vertical movement outside what gravity permits.
  *
- * <p>{@code data.airborneTicks} is maintained by {@link com.example.sentinel.core.CheckManager}
- * before checks run.
+ * <p>An airborne player's vertical velocity must decay as {@code (vy_prev - gravity) * 0.98}, so
+ * hovering or climbing without support is provably illegal — no "hover for N ticks" heuristic
+ * needed. Leaving the ground is bounded by the jump impulse, which catches step/jump hacks too.
  */
 public final class FlyCheck implements MovementCheck {
-	/** Airborne ticks without falling before we consider it flight (absorbs jump apex/landing). */
-	private static final int GRACE_TICKS = 3;
-
 	@Override
 	public String id() {
 		return "fly";
@@ -32,19 +30,22 @@ public final class FlyCheck implements MovementCheck {
 
 	@Override
 	public Violation detect(ServerPlayer player, PlayerData data, MoveContext ctx) {
-		if (MovementSimulator.flyExempt(player)) {
+		if (MovementPredictor.exempt(player) || player.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING)) {
 			return Violation.NONE;
 		}
-		boolean airborne = !MovementSimulator.hasGroundSupport(player, ctx.to);
-		if (!airborne) {
-			return Violation.NONE;
-		}
-		// Not falling (hovering or rising) while airborne past the grace window => flight.
-		boolean notFalling = ctx.dy >= -0.005;
-		if (notFalling && data.airborneTicks >= GRACE_TICKS) {
-			double weight = 1.0 + Math.min(4.0, Math.max(0.0, ctx.dy) * 12.0 + 1.0);
-			return Violation.of(id(), weight,
-					String.format("airborne %d ticks, dy=%.3f, no support", data.airborneTicks, ctx.dy));
+		boolean supported = MovementSimulator.hasGroundSupport(player, ctx.to);
+		SentinelConfig cfg = SentinelConfig.get();
+		// Vertical slack is deliberately much tighter than horizontal: it must stay under gravity
+		// (0.08/tick), or hovering would read as legal falling.
+		double tolerance = cfg.verticalTolerance + cfg.tolerancePerPingTick * ctx.pingTicks();
+
+		double maxVy = MovementPredictor.maxVerticalVelocity(player, data.prevVerticalVelocity, supported, tolerance);
+		if (ctx.dy > maxVy) {
+			double overshoot = ctx.dy - maxVy;
+			double weight = 1.0 + Math.min(4.0, overshoot * 10.0);
+			return Violation.of(id(), weight, String.format(
+					"dy=%.3f > max %.3f (prev vy %.3f, %s)",
+					ctx.dy, maxVy, data.prevVerticalVelocity, supported ? "grounded" : "airborne"));
 		}
 		return Violation.NONE;
 	}

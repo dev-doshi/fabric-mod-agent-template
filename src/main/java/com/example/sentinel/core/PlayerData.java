@@ -20,6 +20,11 @@ public final class PlayerData {
 
 	/** Consecutive ticks the player has been airborne without a legal cause (fly/nofall signal). */
 	public int airborneTicks;
+
+	/** Horizontal speed observed on the previous movement packet — the predictor's state variable. */
+	public double prevHorizontalSpeed;
+	/** Vertical velocity observed on the previous movement packet. */
+	public double prevVerticalVelocity;
 	/** Server tick of the last processed move packet. */
 	public int lastMoveTick = -1;
 

@@ -31,12 +31,21 @@ scripts/test.sh all        # everything
 ```
 CI runs all three tiers — see [.github/workflows/build.yml](.github/workflows/build.yml).
 
-## Sentinel anticheat (P0–P3: movement + combat + world/mining)
+## Sentinel anticheat (P0–P4: prediction engine + movement, combat, world)
 A dynamic, highly-configurable, EULA-compliant anticheat built into the mod and tested by the sim
 harness spawning bots that *cheat on purpose*. See `src/main/java/com/example/sentinel/`.
 
-- **Server-authoritative prediction**, not client trust: a mixin feeds `handleMovePlayer` to a check
-  engine that compares each move to a lag-compensated, attribute-derived valid envelope.
+- **Server-authoritative prediction**, not client trust. The engine reproduces vanilla's movement
+  recurrence — `v_next ≤ v_prev × friction + accel`, with `friction = blockFriction × 0.91` and
+  `accel = getSpeed() × 0.216 / blockFriction³` — so it bounds **acceleration**, not just top speed.
+  That is what catches a cheat tuned to sit just under a naive cap: reaching that speed at all is
+  physically impossible. Vertically, `vy_next = (vy_prev − gravity) × 0.98`, so hovering is provably
+  illegal with no "hovered for N ticks" heuristic.
+  *Model validated against the game, not itself:* the recurrence's steady states come out at 0.215
+  and 0.28 b/t — vanilla's actual walk and sprint speeds (`MovementPredictorTest`).
+- **Real lag compensation:** transaction ping/pong round-trips measure each player's latency
+  precisely in ticks (vanilla's keepalive average is too coarse), and the envelope widens by exactly
+  that much — no more.
 - **Movement checks (P1):** Speed, Fly, NoFall, Timer. Default response is **setback + silent staff
   alert** (no auto-ban) — near-zero false-positive risk.
 - **Combat checks (P2):** Reach, HitThroughWalls (line-of-sight — vanilla does *not* check this),
@@ -48,6 +57,10 @@ harness spawning bots that *cheat on purpose*. See `src/main/java/com/example/se
   for staff review only. Real prevention is chunk obfuscation (P4, not yet built).
 - **Configurable + hot-reload:** per-check `enabled`/`setbackVl`/`decay`/`buffer` in `sentinel.json`;
   `/sentinel reload|alerts|verbose|vl <player>`.
+- **Operationally real:** alerts are throttled per player+check (a sustained cheat flags hundreds of
+  times a second — staff get one line plus a suppressed count); an optional punishment ladder runs
+  console commands at VL thresholds (**empty by default** — shipped posture is setback + alert only);
+  `bypassPlayers` exempts named accounts, and ops are **not** exempt unless you opt in.
 - **EULA-compliant:** behavioral only — no memory/host scanning; client attestation (deferred P5) is
   documented as friction, never proof. See the plan for the honest verdict on client checksums.
 - **Proved by tests:** `SentinelMovementGameTest` spawns cheating bots (each check flags) and legit

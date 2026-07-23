@@ -165,4 +165,79 @@ public class SentinelMovementGameTest {
 			helper.succeed();
 		});
 	}
+
+	// --- P4 prediction-engine proofs ---
+
+	/**
+	 * THE upgrade test. 0.5 blocks/tick sits UNDER the old flat speed cap (~0.54) and would have
+	 * sailed through the threshold-based check, but it is physically unreachable: the friction/accel
+	 * recurrence caps sustained ground speed near 0.29 even sprinting, and bounds acceleration from
+	 * rest at ~0.1. The predictor must flag it.
+	 */
+	@GameTest(maxTicks = 140)
+	public void tunedSpeedCheatUnderOldCapIsFlagged(GameTestHelper helper) {
+		ServerLevel level = helper.getLevel().getServer().overworld();
+		Vec3 center = arena(level, 15);
+
+		Simulation sim = Simulation.spawn(level, 4, center, 1.0, 1500L).start((p, t, r) ->
+				p.cheatMoveBy(0.5, 0, 0, true));
+
+		helper.runAtTickTime(120, () -> {
+			for (SimPlayer p : sim.players()) {
+				helper.assertTrue(flags(p, "speed") > 0, p.name() + " tuned speed cheat NOT flagged");
+			}
+			sim.disband();
+			helper.succeed();
+		});
+	}
+
+	/**
+	 * The false-positive guard for the predictor: a walker that obeys vanilla's own recurrence
+	 * (v_next = v_prev * 0.546 + 0.1, i.e. accelerating from rest toward ~0.215 b/t) must never flag,
+	 * even though it ends up moving continuously at full walking speed.
+	 */
+	@GameTest(maxTicks = 160)
+	public void physicallyCorrectWalkerIsNeverFlagged(GameTestHelper helper) {
+		ServerLevel level = helper.getLevel().getServer().overworld();
+		Vec3 center = arena(level, 16);
+
+		Simulation sim = Simulation.spawn(level, 4, center, 1.0, 1600L).start((p, t, r) -> {
+			// Closed form of v_next = v_prev * f + a from rest: v_t = a * (1 - f^t) / (1 - f).
+			double f = 0.6 * 0.91;
+			double a = 0.1;
+			double v = a * (1 - Math.pow(f, Math.min(t, 20))) / (1 - f);
+			// Patrol back and forth so the walker stays on its platform: walking off the edge and
+			// holding altitude in open air would (correctly) be a flight violation, not a walk.
+			double dir = (t % 50) < 25 ? 1.0 : -1.0;
+			p.cheatMoveBy(v * dir, 0, 0, true);
+		});
+
+		helper.runAtTickTime(140, () -> {
+			for (SimPlayer p : sim.players()) {
+				helper.assertTrue(totalFlags(p) == 0,
+						p.name() + " legit physics walker false-positive: " + totalFlags(p));
+			}
+			sim.disband();
+			helper.succeed();
+		});
+	}
+
+	/** Hovering in mid-air is provably illegal: vertical velocity must decay under gravity. */
+	@GameTest(maxTicks = 140)
+	public void hoveringIsFlagged(GameTestHelper helper) {
+		ServerLevel level = helper.getLevel().getServer().overworld();
+		Vec3 center = arena(level, 17);
+
+		Simulation sim = Simulation.spawn(level, 4, center.add(0, 6, 0), 1.0, 1700L).start((p, t, r) ->
+				// Perfectly still, well above the platform — never falling.
+				p.cheatMoveBy(0, 0, 0, false));
+
+		helper.runAtTickTime(120, () -> {
+			for (SimPlayer p : sim.players()) {
+				helper.assertTrue(flags(p, "fly") > 0, p.name() + " hovering NOT flagged");
+			}
+			sim.disband();
+			helper.succeed();
+		});
+	}
 }

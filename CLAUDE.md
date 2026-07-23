@@ -109,12 +109,14 @@ over `@Redirect`; MixinExtras 0.5.4 is bundled in the loader — just import and
 src/main/java/com/example/          COMMON (server+client) code
   sentinel/                         Sentinel anticheat (server-authoritative, EULA-compliant)
     core/ CheckManager, PlayerData, ViolationLevels, MoveContext, MovementCheck
-    physics/ MovementSimulator      valid movement envelope (attributes + lag-comp)
+    physics/ MovementPredictor      PREDICTION engine: friction/accel recurrence + gravity bound
+             MovementSimulator      ground-support sampling
     checks/ movement: Speed, Fly, NoFall, Timer
             combat:   Reach, HitThroughWalls, KillAuraAngle, AutoClicker
             world:    FastBreak, Nuker, FastPlace, XrayHeuristic (advisory)
     mixin/ ServerGamePacketListenerImplMixin   feeds handleMovePlayer to the engine
-    config/ SentinelConfig (hot-reload)  command/ SentinelCommand  alert/ AlertSink
+    core/ LagCompensation (transaction ping/pong RTT), Punishment (VL->commands)
+    config/ SentinelConfig (hot-reload)  command/ SentinelCommand  alert/ AlertSink (throttled)
   ExampleMod.java                   main entrypoint; MOD_ID + id() helper
   config/ExampleConfig.java         gson JSON config — pure logic, Tier-1 tested
   item/ModItems.java, ModBlocks.java  item/block registration + creative tab

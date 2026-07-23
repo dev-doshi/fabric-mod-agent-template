@@ -34,6 +34,11 @@ public final class SentinelConfig {
 	public double globalMovementTolerance = 0.08;
 	/** Extra envelope slack per 50ms of measured ping (lag compensation). */
 	public double tolerancePerPingTick = 0.03;
+	/**
+	 * Vertical slack (blocks/tick). MUST stay below gravity (0.08) — otherwise the tolerance swallows
+	 * gravity itself and hovering becomes indistinguishable from falling.
+	 */
+	public double verticalTolerance = 0.02;
 
 	// --- Per-check settings. Defaults chosen for a survival server: setback + alert, no auto-ban. ---
 	public CheckSettings speed = new CheckSettings(true, 12.0, 4.0, 4);
@@ -71,6 +76,34 @@ public final class SentinelConfig {
 	public int xraySampleSize = 40;
 	/** Ore fraction above which mining looks implausible (advisory). */
 	public double maxOreRatio = 0.40;
+
+	// --- Operations ---
+	/**
+	 * Optional punishment ladder per check id, e.g. {@code {"speed": [{"atVl": 40, "command":
+	 * "kick {player} Cheating"}]}}. EMPTY BY DEFAULT — shipped posture is setback + alert only.
+	 * Placeholders: {player}, {check}, {vl}.
+	 */
+	public java.util.Map<String, java.util.List<PunishmentRule>> punishments = new java.util.HashMap<>();
+
+	/** Players listed here (by name) are exempt from all checks — e.g. staff running tests. */
+	public java.util.List<String> bypassPlayers = new java.util.ArrayList<>();
+
+	/** Operators (permission level ≥ 2) bypass all checks. Off by default: admins can cheat too. */
+	public boolean opsBypass = false;
+
+	/** One rung of a punishment ladder. */
+	public static final class PunishmentRule {
+		public double atVl;
+		public String command;
+
+		public PunishmentRule() {
+		}
+
+		public PunishmentRule(double atVl, String command) {
+			this.atVl = atVl;
+			this.command = command;
+		}
+	}
 
 	/** Tunables shared by every check. */
 	public static final class CheckSettings {

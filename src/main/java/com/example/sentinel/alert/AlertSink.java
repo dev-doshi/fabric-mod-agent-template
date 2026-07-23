@@ -41,10 +41,34 @@ public final class AlertSink {
 		return true;
 	}
 
-	/** A confirmed flag (VL added). Goes to console + all staff with alerts on. */
+	// Throttle: at most one alert per player+check per window, with a suppressed-count summary.
+	private static final long THROTTLE_MS = 3000;
+	private static final java.util.Map<String, long[]> LAST_ALERT = new ConcurrentHashMap<>();
+
+	/**
+	 * A confirmed flag (VL added). Goes to console + all staff with alerts on.
+	 *
+	 * <p>Throttled per player+check: a sustained cheat can flag many times per second, and spraying
+	 * thousands of identical lines at staff makes the feed useless. Suppressed hits are counted and
+	 * reported with the next alert that gets through.
+	 */
 	public static void alert(ServerPlayer player, Violation v, double vl) {
-		String line = String.format("%s failed %s (vl %.1f) — %s",
-				player.getGameProfile().name(), v.checkId(), vl, v.detail());
+		String key = player.getUUID() + "/" + v.checkId();
+		long now = System.currentTimeMillis();
+		long[] state = LAST_ALERT.computeIfAbsent(key, k -> new long[] {0L, 0L}); // {lastMs, suppressed}
+		long suppressed;
+		synchronized (state) {
+			if (now - state[0] < THROTTLE_MS) {
+				state[1]++;
+				return;
+			}
+			suppressed = state[1];
+			state[0] = now;
+			state[1] = 0;
+		}
+		String extra = suppressed > 0 ? String.format(" (+%d more)", suppressed) : "";
+		String line = String.format("%s failed %s (vl %.1f) — %s%s",
+				player.getGameProfile().name(), v.checkId(), vl, v.detail(), extra);
 		ExampleMod.LOGGER.warn("[sentinel] {}", line);
 		broadcast(player.level().getServer(), Component.literal("§c[Sentinel] §f" + line), false);
 	}

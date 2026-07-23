@@ -63,7 +63,29 @@ public final class CheckManager {
 			UUID id = handler.player.getUUID();
 			DATA.remove(id);
 			AlertSink.clear(id);
+			LagCompensation.clear(id);
 		});
+	}
+
+	/**
+	 * Whether this player is exempt from all checks (config allow-list, or ops when opsBypass is on).
+	 * Off by default for ops — administrators are not automatically above the anticheat.
+	 */
+	public static boolean isBypassed(ServerPlayer player) {
+		SentinelConfig cfg = SentinelConfig.get();
+		String name = player.getGameProfile().name();
+		if (cfg.bypassPlayers != null && cfg.bypassPlayers.contains(name)) {
+			return true;
+		}
+		if (cfg.opsBypass) {
+			var server = player.level().getServer();
+			return server != null && server.getPlayerList().isOp(player.nameAndId());
+		}
+		return false;
+	}
+
+	public static long currentTick() {
+		return currentTick;
 	}
 
 	public static PlayerData dataFor(ServerPlayer player) {
@@ -76,13 +98,14 @@ public final class CheckManager {
 	 */
 	public static boolean onMove(ServerPlayer player, double x, double y, double z, boolean claimedOnGround) {
 		SentinelConfig cfg = SentinelConfig.get();
-		if (!cfg.enabled) {
+		if (!cfg.enabled || isBypassed(player)) {
 			return false;
 		}
 
 		PlayerData data = dataFor(player);
 		Vec3 to = new Vec3(x, y, z);
-		MoveContext ctx = new MoveContext(data.lastPos, to, claimedOnGround, player.connection.latency());
+		MoveContext ctx = new MoveContext(data.lastPos, to, claimedOnGround,
+				(int) Math.round(LagCompensation.latencyTicks(player) * 50.0));
 
 		// Maintain airborne counter (for Fly) and debit the timer balance (for Timer).
 		boolean supported = com.example.sentinel.physics.MovementSimulator.hasGroundSupport(player, to);
@@ -110,6 +133,7 @@ public final class CheckManager {
 			data.incrementFlag(check.id());
 			double vl = data.vl(check.id());
 			AlertSink.alert(player, v, vl);
+			Punishment.run(player, check.id(), vl);
 			if (!cfg.silent && vl >= s.setbackVl) {
 				setback = true;
 				data.resetVl(check.id());
@@ -122,9 +146,15 @@ public final class CheckManager {
 			Vec3 back = data.lastValidPos;
 			player.connection.teleport(back.x, back.y, back.z, player.getYRot(), player.getXRot());
 			data.lastPos = back;
+			// Velocity is zeroed by the rubberband — the player is authoritatively back at rest.
+			data.prevHorizontalSpeed = 0.0;
+			data.prevVerticalVelocity = 0.0;
 			return true;
 		}
 
+		// Carry this tick's observed velocity forward as the predictor's state for the next tick.
+		data.prevHorizontalSpeed = ctx.horizontal;
+		data.prevVerticalVelocity = ctx.dy;
 		data.lastPos = to;
 		// Only anchor the setback position to a fully-clean move, so rubberbands go to safe ground.
 		if (!anyFlag) {
@@ -139,7 +169,7 @@ public final class CheckManager {
 	 */
 	public static boolean onAttack(ServerPlayer player, Entity target) {
 		SentinelConfig cfg = SentinelConfig.get();
-		if (!cfg.enabled || target == null || target == player) {
+		if (!cfg.enabled || target == null || target == player || isBypassed(player)) {
 			return false;
 		}
 		PlayerData data = dataFor(player);
@@ -162,6 +192,7 @@ public final class CheckManager {
 			data.incrementFlag(check.id());
 			double vl = data.vl(check.id());
 			AlertSink.alert(player, v, vl);
+			Punishment.run(player, check.id(), vl);
 			if (!cfg.silent && vl >= s.setbackVl) {
 				cancel = true;
 				data.resetVl(check.id());
@@ -177,7 +208,7 @@ public final class CheckManager {
 	 */
 	public static boolean onBlockAction(ServerPlayer player, BlockContext.Kind kind, net.minecraft.core.BlockPos pos) {
 		SentinelConfig cfg = SentinelConfig.get();
-		if (!cfg.enabled) {
+		if (!cfg.enabled || isBypassed(player)) {
 			return false;
 		}
 		PlayerData data = dataFor(player);
@@ -209,6 +240,7 @@ public final class CheckManager {
 			data.incrementFlag(check.id());
 			double vl = data.vl(check.id());
 			AlertSink.alert(player, v, vl);
+			Punishment.run(player, check.id(), vl);
 			if (!cfg.silent && vl >= s.setbackVl) {
 				cancel = true;
 				data.resetVl(check.id());
@@ -224,6 +256,7 @@ public final class CheckManager {
 
 	private static void onServerTick(net.minecraft.server.MinecraftServer server) {
 		currentTick++;
+		LagCompensation.tick(server, currentTick);
 		SentinelConfig cfg = SentinelConfig.get();
 		for (PlayerData data : DATA.values()) {
 			data.creditTimer(TIMER_CAP);
